@@ -40,6 +40,8 @@ NSString *const GOTimeZoneResponseStatusDenied = @"REQUEST_DENIED";
 NSString *const GOTimeZoneResponseStatusUnknown = @"UNKNOWN_ERROR";
 NSString *const GOTimeZoneResponseStatusZeroResults = @"ZERO_RESULTS";
 
+static void * GOTimeZoneContext = &GOTimeZoneContext;
+
 @interface GOTimeZone ()
 @property (nonatomic, readwrite, getter = isRunning) BOOL running;
 @property (nonatomic, readwrite, getter = isCancelling) BOOL cancelling;
@@ -83,11 +85,14 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
 - (void)requestTimezoneForLocation:(CLLocation *)location completionHandler:(GOTimeZoneCompletionHandler)completionHandler {
     // Ignore if we are already running
     // Previous request has to be completely cancelled first
-    if (self.running || self.cancelling)
-        return;
+    @synchronized(self) {
+        if (self.running || self.cancelling)
+            return;
+        
+        self.running = YES;
+    }
     
     // Update state
-    self.running = YES;
     self.completionHandler = completionHandler;
     
     // Create the connection
@@ -97,7 +102,6 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     if ([self.googleAPIKey length] > 0)
         [urlString appendFormat:@"&key=%@", self.googleAPIKey];
     
-    NSLog(@"URL %@", urlString);
     NSURL *url = [NSURL URLWithString:urlString];
     NSURLRequest *request = [NSURLRequest requestWithURL:url];
     self.connection = [NSURLConnection connectionWithRequest:request delegate:self];
@@ -107,17 +111,21 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     self.progress.cancellable = YES;
     self.progress.pausable = NO;
     
+    // Observe progress state
+    [self.progress addObserver:self forKeyPath:NSStringFromSelector(@selector(isCancelled)) options:0 context:GOTimeZoneContext];
+    
     // Start the connection
     [self.connection start];
 }
 
 - (void)cancelRequest {
     // If not running, or already in the middle of cancelling, then ignore
-    if (!self.isRunning || self.isCancelling)
-        return;
-    
-    // Update state
-    self.cancelling = YES;
+    @synchronized(self) {
+        if (!self.isRunning || self.isCancelling)
+            return;
+        
+        self.cancelling = YES;
+    }
     
     // Cancel the connection
     [self.connection cancel];
@@ -135,6 +143,7 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
         self.running = NO;
         self.cancelling = NO;
         
+        [self.progress removeObserver:self forKeyPath:NSStringFromSelector(@selector(isCancelled)) context:GOTimeZoneContext];
         self.progress = nil;
     });
 }
@@ -176,9 +185,6 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
     [self.data appendData:data];
     self.progress.completedUnitCount += [data length];
-    
-    if (self.progress.isCancelled)
-        [self cancelRequest];
 }
 
 
@@ -221,6 +227,20 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     }
     
     [self finishRequest:result error:error];
+}
+
+#pragma mark -
+#pragma mark KVO
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if (context == GOTimeZoneContext) {
+        if ([keyPath isEqualToString:NSStringFromSelector(@selector(isCancelled))]) {
+            if ([object isCancelled])
+                [self cancelRequest];   // Cancel the request
+        }
+    } else {
+        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+    }
 }
 
 @end
