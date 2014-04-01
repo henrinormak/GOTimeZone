@@ -172,12 +172,12 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     
     if ([HTTPResponse statusCode] == 200) {
         NSUInteger length = (NSUInteger)[response expectedContentLength];
-        [self.progress setTotalUnitCount:length];
-        
-        if (length > 0)
+        if (length != NSURLResponseUnknownLength) {
+            [self.progress setTotalUnitCount:length];
             self.data = [NSMutableData dataWithCapacity:length];
-        else
+        } else {
             self.data = [NSMutableData data];
+        }
     }
 }
 
