@@ -192,7 +192,7 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     
     // Make sure the progress is not "completed" prematurely due to some miscalculation
     // in the expected length
-    if (self.progress.totalUnitCount < units)
+    if (self.progress.totalUnitCount <= units)
         [self.progress setTotalUnitCount:units+1];
     
     [self.progress setCompletedUnitCount:units];
