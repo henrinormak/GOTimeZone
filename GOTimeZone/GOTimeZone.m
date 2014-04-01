@@ -143,6 +143,8 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
         self.running = NO;
         self.cancelling = NO;
         
+        // Make sure the progress reporting is complete
+        [self.progress setCompletedUnitCount:self.progress.totalUnitCount];
         [self.progress removeObserver:self forKeyPath:NSStringFromSelector(@selector(isCancelled)) context:GOTimeZoneContext];
         self.progress = nil;
     });
@@ -176,6 +178,8 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
             [self.progress setTotalUnitCount:length];
             self.data = [NSMutableData dataWithCapacity:length];
         } else {
+            // No concrete length, just give an arbitrary estimate (which we'll grow with every chunk of new data we get)
+            [self.progress setTotalUnitCount:1];
             self.data = [NSMutableData data];
         }
     }
@@ -184,7 +188,14 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
     [self.data appendData:data];
-    self.progress.completedUnitCount += [data length];
+    NSUInteger units = self.progress.completedUnitCount + [data length];
+    
+    // Make sure the progress is not "completed" prematurely due to some miscalculation
+    // in the expected length
+    if (self.progress.totalUnitCount < units)
+        [self.progress setTotalUnitCount:units+1];
+    
+    [self.progress setCompletedUnitCount:units];
 }
 
 
