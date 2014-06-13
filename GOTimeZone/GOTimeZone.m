@@ -112,7 +112,7 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     self.progress.pausable = NO;
     
     // Observe progress state
-    [self.progress addObserver:self forKeyPath:NSStringFromSelector(@selector(isCancelled)) options:0 context:GOTimeZoneContext];
+    [self.progress addObserver:self forKeyPath:@"cancelled" options:0 context:GOTimeZoneContext];
     
     // Start the connection
     [self.connection start];
@@ -145,7 +145,7 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
         
         // Make sure the progress reporting is complete
         [self.progress setCompletedUnitCount:self.progress.totalUnitCount];
-        [self.progress removeObserver:self forKeyPath:NSStringFromSelector(@selector(isCancelled)) context:GOTimeZoneContext];
+        [self.progress removeObserver:self forKeyPath:@"cancelled" context:GOTimeZoneContext];
         self.progress = nil;
     });
 }
@@ -173,10 +173,10 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     NSHTTPURLResponse *HTTPResponse = (NSHTTPURLResponse *)response;
     
     if ([HTTPResponse statusCode] == 200) {
-        NSUInteger length = (NSUInteger)[response expectedContentLength];
+        long long length = (NSUInteger)[response expectedContentLength];
         if (length != NSURLResponseUnknownLength) {
             [self.progress setTotalUnitCount:length];
-            self.data = [NSMutableData dataWithCapacity:length];
+            self.data = [NSMutableData dataWithCapacity:(NSUInteger)length];
         } else {
             // No concrete length, just give an arbitrary estimate (which we'll grow with every chunk of new data we get)
             [self.progress setTotalUnitCount:1];
@@ -188,7 +188,7 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
     [self.data appendData:data];
-    NSUInteger units = self.progress.completedUnitCount + [data length];
+    long long units = self.progress.completedUnitCount + [data length];
     
     // Make sure the progress is not "completed" prematurely due to some miscalculation
     // in the expected length
@@ -245,7 +245,7 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     if (context == GOTimeZoneContext) {
-        if ([keyPath isEqualToString:NSStringFromSelector(@selector(isCancelled))]) {
+        if ([keyPath isEqualToString:@"cancelled"]) {
             if ([object isCancelled])
                 [self cancelRequest];   // Cancel the request
         }
