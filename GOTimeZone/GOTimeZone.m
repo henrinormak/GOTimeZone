@@ -173,9 +173,9 @@ static NSString *GOTimeZoneDefaultAPIKey = @"";
     NSHTTPURLResponse *HTTPResponse = (NSHTTPURLResponse *)response;
     
     if ([HTTPResponse statusCode] == 200) {
-        long long length = (NSUInteger)[response expectedContentLength];
+        long long length = [response expectedContentLength];
         if (length != NSURLResponseUnknownLength) {
-            [self.progress setTotalUnitCount:length];
+            [self.progress setTotalUnitCount:(int64_t)length];
             self.data = [NSMutableData dataWithCapacity:(NSUInteger)length];
         } else {
             // No concrete length, just give an arbitrary estimate (which we'll grow with every chunk of new data we get)
